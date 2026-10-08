@@ -7,8 +7,10 @@ import (
 )
 
 func main() {
-	num, _ := Id_to_base_62(11157)
-	fmt.Println(num)
+	str, _ := Id_to_base_62(111005543265347)
+	fmt.Println(str)
+	id, _ := Base_62_to_Id(str)
+	fmt.Println(id)
 }
 
 const base_62_map string = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -38,9 +40,19 @@ func Base_62_to_Id(val string) (int64, error) {
 		return -1, nil
 	}
 
-	var b_val []byte
-	b_val = []byte(val)
-
-	slices.Reverse(b_val)
-
+	num := int64(0)
+	for _, ch := range val {
+		idx := -1
+		for i := range len(base_62_map) {
+			if base_62_map[i] == byte(ch) {
+				idx = i
+				break
+			}
+		}
+		if idx == -1 {
+			return 0, fmt.Errorf("invalid character: %c", ch)
+		}
+		num = num*62 + int64(idx)
+	}
+	return num, nil
 }
