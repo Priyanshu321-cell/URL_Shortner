@@ -39,3 +39,6 @@ Example -> 243534(base 10) = 11IY after getting remainder of each division
 ## Why Base 62 ?
 I choose it because of simplicity on cost of not getting fixed length urls .
 
+The Base 62 convertion and vice versa are added in helper.go file
+
+

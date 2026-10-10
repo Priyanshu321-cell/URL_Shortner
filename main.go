@@ -1,58 +1,92 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
-	"math/big"
-	"slices"
+	"log"
+	"net/http"
+	"sync"
 )
 
+// in memory store
+type Store struct {
+	mu      sync.Mutex
+	memory  map[int64]string
+	counter int64
+}
+
+func NewStore(counter int64) *Store {
+	return &Store{counter: 10000, memory: make(map[int64]string)}
+}
+
+func (s *Store) Add(longUrl string) int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.counter++
+	s.memory[s.counter] = longUrl
+	return s.counter
+}
+
+func (s *Store) Get(id int64) (string, error) {
+	if s.memory[id] == "" {
+		return "", fmt.Errorf("Key not found")
+	}
+
+	return s.memory[id], nil
+}
+
 func main() {
-	str, _ := Id_to_base_62(111005543265347)
-	fmt.Println(str)
-	id, _ := Base_62_to_Id(str)
-	fmt.Println(id)
+	srv := &Server{store: NewStore(0)}
+
+	addrPtr := flag.String("addr", ":4000", "a string address default=\"4000\"")
+	flag.Parse()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{$}", srv.home)
+	mux.HandleFunc("POST /longURL", srv.urlPost)
+
+	log.Println("Starting server at address", *addrPtr)
+	err := http.ListenAndServe(*addrPtr, mux)
+	log.Println(err)
 }
 
-const base_62_map string = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-func Id_to_base_62(val int64) (string, error) {
-	var res []byte
-	if val <= 0 {
-		return string(res), nil
-	}
-
-	rem := big.NewInt(val)
-	bigVal := big.NewInt(val)
-	div := big.NewInt(62)
-	zero := big.NewInt(0)
-	for bigVal.Cmp(zero) != 0 {
-		rem.Mod(bigVal, div)
-		bigVal.Div(bigVal, div)
-		res = append(res, base_62_map[rem.Int64()])
-	}
-
-	slices.Reverse(res)
-	return string(res), nil
+type Server struct {
+	store *Store
 }
 
-func Base_62_to_Id(val string) (int64, error) {
-	if val == "" {
-		return -1, nil
+func (srv *Server) home(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("It works\n"))
+}
+
+type UrlData struct {
+	LongUrl string `json:"LongUrl"`
+}
+
+func (srv *Server) urlPost(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
 
-	num := int64(0)
-	for _, ch := range val {
-		idx := -1
-		for i := range len(base_62_map) {
-			if base_62_map[i] == byte(ch) {
-				idx = i
-				break
-			}
-		}
-		if idx == -1 {
-			return 0, fmt.Errorf("invalid character: %c", ch)
-		}
-		num = num*62 + int64(idx)
+	defer r.Body.Close()
+
+	var data UrlData
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
 	}
-	return num, nil
+	if data.LongUrl == "" {
+		http.Error(w, "invalid JSON: ", http.StatusBadRequest)
+		return
+	}
+
+	id := srv.store.Add(data.LongUrl)
+	shortUrl, err := Id_to_base_62(id)
+	if err != nil {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Add("Short-URL", shortUrl)
 }
