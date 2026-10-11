@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -45,6 +46,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", srv.home)
 	mux.HandleFunc("POST /longURL", srv.urlPost)
+	mux.HandleFunc("GET /shortURL", srv.urlGet)
 
 	log.Println("Starting server at address", *addrPtr)
 	err := http.ListenAndServe(*addrPtr, mux)
@@ -62,6 +64,8 @@ func (srv *Server) home(w http.ResponseWriter, r *http.Request) {
 type UrlData struct {
 	LongUrl string `json:"LongUrl"`
 }
+
+const baseURL string = "http://tinyURL/"
 
 func (srv *Server) urlPost(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -88,5 +92,46 @@ func (srv *Server) urlPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	shortUrl = baseURL + shortUrl
 	w.Header().Add("Short-URL", shortUrl)
+}
+
+type ShortUrlData struct {
+	ShortUrl string `json:"ShortUrl"`
+}
+
+func (srv *Server) urlGet(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	var data ShortUrlData
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if data.ShortUrl == "" {
+		http.Error(w, "invalid JSON: ", http.StatusBadRequest)
+		return
+	}
+
+	str := data.ShortUrl
+	str = strings.TrimPrefix(str, baseURL)
+
+	if str == "" {
+		http.Error(w, "invalid JSON: ", http.StatusBadRequest)
+		return
+	}
+
+	id, err := Base_62_to_Id(str)
+	if err != nil {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+	longUrl, err := srv.store.Get(id)
+	if err != nil {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Add("Long-URL", longUrl)
 }
