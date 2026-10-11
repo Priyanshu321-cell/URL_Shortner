@@ -37,8 +37,10 @@ Base 62 means using 62 different characters to represent a number . These includ
 Example -> 243534(base 10) = 11IY after getting remainder of each division
 
 ## Why Base 62 ?
-I choose it because of simplicity on cost of not getting fixed length urls .
+I choose it because of simplicity on cost of not getting fixed length urls .<br>
 
-The Base 62 convertion and vice versa are added in helper.go file
+The Base 62 convertion and vice versa are added in helper.go file<br>
+
+The project uses in memory struct to store long url and counter to generate id will soon shift to actual data base as soon as i will be done with redirecting part.
 
 
